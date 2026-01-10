@@ -1,0 +1,27 @@
+# 1. Создаёшь тяжёлый базовый образ (один раз)
+FROM ubuntu:22.04
+
+RUN apt-get update && apt-get install -y \
+    build-essential cmake libsqlite3-dev git libboost-all-dev \
+    libpq-dev libpqxx-dev libsodium-dev libcurl4-openssl-dev \
+    openssl zlib1g-dev && rm -rf /var/lib/apt/lists/*
+
+# AWS SDK — самая долгая часть
+WORKDIR /tmp
+RUN git clone --recurse-submodules --branch 1.11.329 \
+    https://github.com/aws/aws-sdk-cpp.git && \
+    cd aws-sdk-cpp && \
+    mkdir build && cd build && \
+    cmake .. \
+        -DBUILD_ONLY="s3;core" \
+        -DENABLE_TESTING=OFF \
+        -DBUILD_SHARED_LIBS=ON \
+        -DENABLE_CURL=ON \
+        -DENABLE_UNITY_BUILD=ON \
+        -DUSE_CRYPTO=OPENSSL \
+        -DENABLE_S3_CRT=OFF && \
+    make -j$(nproc) && make install && \
+    cd / && rm -rf /tmp/aws-sdk-cpp
+
+# Метки для удобства
+LABEL stage=base

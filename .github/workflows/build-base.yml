@@ -35,8 +35,8 @@ jobs:
           file: Dockerfile.base
           push: true
           tags: |
-            yourusername/afd-base:latest
-            yourusername/afd-base:2026-01
+            yourusername/sal-base:latest
+            yourusername/sal-base:2026-01
           cache-from: type=gha
           cache-to: type=gha,mode=max
           # Опционально: github-token: ${{ secrets.GITHUB_TOKEN }}  (обычно не нужно, action берёт сам)

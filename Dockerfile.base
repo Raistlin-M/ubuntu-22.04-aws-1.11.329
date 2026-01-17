@@ -23,5 +23,6 @@ RUN git clone --recurse-submodules --branch 1.11.329 \
     make -j$(nproc) && make install && \
     cd / && rm -rf /tmp/aws-sdk-cpp
 
+
 # Метки для удобства
 LABEL stage=base

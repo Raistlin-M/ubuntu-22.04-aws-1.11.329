@@ -1,25 +1,41 @@
-FROM ubuntu:22.04
+FROM --platform=linux/amd64 ubuntu:22.04
 
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Базовые зависимости
 RUN apt-get update && apt-get install -y \
-    build-essential cmake libsqlite3-dev git libboost-all-dev \
-    libpq-dev libpqxx-dev libsodium-dev libcurl4-openssl-dev \
-    openssl zlib1g-dev \
+    build-essential \
+    cmake \
+    git \
+    wget \
+    libsqlite3-dev \
+    libboost-all-dev \
+    libpq-dev \
+    libpqxx-dev \
+    libsodium-dev \
+    libcurl4-openssl-dev \
+    libssl-dev \
+    zlib1g-dev \
     libmagic-dev \
     libvips-dev \
-    wget \
     && rm -rf /var/lib/apt/lists/*
 
-# OR-Tools
+# ----------------------------
+# OR-Tools (amd64 бинарник)
+# ----------------------------
+WORKDIR /tmp
 RUN wget -q https://github.com/google/or-tools/releases/download/v9.15/or-tools_amd64_ubuntu-22.04_cpp_v9.15.6755.tar.gz \
-        -O /tmp/ortools.tar.gz && \
-    mkdir -p /tmp/ortools && \
-    tar -xzf /tmp/ortools.tar.gz -C /tmp/ortools --strip-components=1 && \
-    cp -r /tmp/ortools/include/* /usr/local/include/ && \
-    cp -r /tmp/ortools/lib/* /usr/local/lib/ && \
+        -O ortools.tar.gz && \
+    mkdir ortools && \
+    tar -xzf ortools.tar.gz -C ortools --strip-components=1 && \
+    cp -r ortools/include/* /usr/local/include/ && \
+    cp -r ortools/lib/* /usr/local/lib/ && \
     ldconfig && \
-    rm -rf /tmp/ortools.tar.gz /tmp/ortools
+    rm -rf ortools ortools.tar.gz
 
-# AWS SDK
+# ----------------------------
+# AWS SDK C++
+# ----------------------------
 WORKDIR /tmp
 RUN git clone --recurse-submodules --branch 1.11.329 \
     https://github.com/aws/aws-sdk-cpp.git && \
@@ -30,10 +46,11 @@ RUN git clone --recurse-submodules --branch 1.11.329 \
         -DENABLE_TESTING=OFF \
         -DBUILD_SHARED_LIBS=ON \
         -DENABLE_CURL=ON \
-        -DENABLE_UNITY_BUILD=ON \
         -DUSE_CRYPTO=OPENSSL \
         -DENABLE_S3_CRT=OFF && \
-    make -j$(nproc) && make install && \
+    make -j2 && \
+    make install && \
+    ldconfig && \
     cd / && rm -rf /tmp/aws-sdk-cpp
 
 LABEL stage=base

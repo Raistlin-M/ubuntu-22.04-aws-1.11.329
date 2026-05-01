@@ -1,15 +1,25 @@
 FROM ubuntu:22.04
 
+# 1. Устанавливаем системные зависимости
 RUN apt-get update && apt-get install -y \
     build-essential cmake libsqlite3-dev git libboost-all-dev \
     libpq-dev libpqxx-dev libsodium-dev libcurl4-openssl-dev \
     openssl zlib1g-dev \
     libmagic-dev \
     libvips-dev \
-    libortools-dev \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
-# AWS SDK — самая долгая часть
+# 2. Установка Google OR-Tools для C++ (Ubuntu 22.04)
+WORKDIR /tmp
+RUN wget https://github.com \
+    && tar -xzf or-tools_amd64_ubuntu-22.04_cpp_v9.11.4210.tar.gz \
+    && cd or-tools_x86_64_Ubuntu-22.04_cpp_v9.11.4210 \
+    && cp -r include/* /usr/local/include/ \
+    && cp -r lib/* /usr/local/lib/ \
+    && cd / && rm -rf /tmp/or-tools*
+
+# 3. AWS SDK
 WORKDIR /tmp
 RUN git clone --recurse-submodules --branch 1.11.329 \
     https://github.com/aws/aws-sdk-cpp.git && \

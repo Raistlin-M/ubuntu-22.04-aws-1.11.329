@@ -12,11 +12,12 @@ RUN apt-get update && apt-get install -y \
 # OR-Tools
 RUN wget -q https://github.com/google/or-tools/releases/download/v9.15/or-tools_amd64_ubuntu-22.04_cpp_v9.15.6755.tar.gz \
         -O /tmp/ortools.tar.gz && \
-    tar -xzf /tmp/ortools.tar.gz -C /tmp && \
-    cp -r /tmp/or-tools_amd64_ubuntu-22.04_cpp_v9.15.6755/include/* /usr/local/include/ && \
-    cp -r /tmp/or-tools_amd64_ubuntu-22.04_cpp_v9.15.6755/lib/* /usr/local/lib/ && \
+    mkdir -p /tmp/ortools && \
+    tar -xzf /tmp/ortools.tar.gz -C /tmp/ortools --strip-components=1 && \
+    cp -r /tmp/ortools/include/* /usr/local/include/ && \
+    cp -r /tmp/ortools/lib/* /usr/local/lib/ && \
     ldconfig && \
-    rm -rf /tmp/ortools.tar.gz /tmp/or-tools_amd64_ubuntu-22.04_cpp_v9.15.6755
+    rm -rf /tmp/ortools.tar.gz /tmp/ortools
 
 # AWS SDK
 WORKDIR /tmp

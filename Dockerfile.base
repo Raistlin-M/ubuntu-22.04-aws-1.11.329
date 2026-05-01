@@ -12,12 +12,13 @@ RUN apt-get update && apt-get install -y \
 
 # 2. Установка Google OR-Tools для C++ (Ubuntu 22.04)
 WORKDIR /tmp
-RUN wget https://github.com \
-    && tar -xzf or-tools_amd64_ubuntu-22.04_cpp_v9.11.4210.tar.gz \
+RUN wget -O ortools.tar.gz https://github.com \
+    && tar -xzf ortools.tar.gz \
     && cd or-tools_x86_64_Ubuntu-22.04_cpp_v9.11.4210 \
     && cp -r include/* /usr/local/include/ \
     && cp -r lib/* /usr/local/lib/ \
-    && cd / && rm -rf /tmp/or-tools*
+    && ldconfig \
+    && cd / && rm -rf /tmp/ortools.tar.gz /tmp/or-tools_x86_64_Ubuntu-22.04_cpp_v9.11.4210
 
 # 3. AWS SDK
 WORKDIR /tmp

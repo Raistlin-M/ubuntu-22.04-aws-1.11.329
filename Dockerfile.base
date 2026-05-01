@@ -1,56 +1,87 @@
-FROM --platform=linux/amd64 ubuntu:22.04
+FROM ubuntu:22.04
 
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Базовые зависимости
+# ====================== Базовые зависимости ======================
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
+    ninja-build \
     git \
     wget \
+    curl \
+    libssl-dev \
+    zlib1g-dev \
+    libbz2-dev \
+    libreadline-dev \
     libsqlite3-dev \
-    libboost-all-dev \
+    libncursesw5-dev \
+    xz-utils \
+    tk-dev \
+    libxml2-dev \
+    libxmlsec1-dev \
+    libffi-dev \
+    liblzma-dev \
     libpq-dev \
     libpqxx-dev \
     libsodium-dev \
     libcurl4-openssl-dev \
-    libssl-dev \
-    zlib1g-dev \
     libmagic-dev \
     libvips-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# ----------------------------
-# OR-Tools (amd64 бинарник)
-# ----------------------------
+# ====================== Сборка OR-Tools из исходников ======================
 WORKDIR /tmp
-RUN wget -q https://github.com/google/or-tools/releases/download/v9.15/or-tools_amd64_ubuntu-22.04_cpp_v9.15.6755.tar.gz \
-        -O ortools.tar.gz && \
-    mkdir ortools && \
-    tar -xzf ortools.tar.gz -C ortools --strip-components=1 && \
-    cp -r ortools/include/* /usr/local/include/ && \
-    cp -r ortools/lib/* /usr/local/lib/ && \
-    ldconfig && \
-    rm -rf ortools ortools.tar.gz
 
-# ----------------------------
-# AWS SDK C++
-# ----------------------------
+# Клонируем актуальную версию (рекомендую stable ветку или конкретный тег)
+ARG ORTOOLS_VERSION=v9.15
+RUN git clone --depth 1 --branch ${ORTOOLS_VERSION} https://github.com/google/or-tools.git
+
+WORKDIR /tmp/or-tools
+
+# Создаём папку сборки
+RUN mkdir -p build && cd build
+
+# Конфигурация CMake
+# -DBUILD_DEPS=ON — автоматически соберёт все зависимости (CBC, HiGHS, SCIP и т.д.)
+RUN cmake -S . -B build \
+    -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_DEPS=ON \
+    -DBUILD_PYTHON=OFF \
+    -DBUILD_JAVA=OFF \
+    -DBUILD_DOTNET=OFF \
+    -DBUILD_CXX_SAMPLES=OFF \
+    -DBUILD_CXX_EXAMPLES=OFF \
+    -DCMAKE_INSTALL_PREFIX=/usr/local
+
+# Сборка (используем все ядра)
+RUN cmake --build build --config Release --target all -j$(nproc)
+
+# Установка
+RUN cmake --install build
+
+# Очистка
+WORKDIR /
+RUN rm -rf /tmp/or-tools
+
+# ====================== AWS SDK (оставляем как было) ======================
 WORKDIR /tmp
 RUN git clone --recurse-submodules --branch 1.11.329 \
     https://github.com/aws/aws-sdk-cpp.git && \
     cd aws-sdk-cpp && \
     mkdir build && cd build && \
     cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
         -DBUILD_ONLY="s3;core" \
         -DENABLE_TESTING=OFF \
         -DBUILD_SHARED_LIBS=ON \
         -DENABLE_CURL=ON \
+        -DENABLE_UNITY_BUILD=ON \
         -DUSE_CRYPTO=OPENSSL \
         -DENABLE_S3_CRT=OFF && \
-    make -j2 && \
-    make install && \
-    ldconfig && \
+    make -j$(nproc) && make install && \
     cd / && rm -rf /tmp/aws-sdk-cpp
+
+# ldconfig после установки библиотек
+RUN ldconfig
 
 LABEL stage=base

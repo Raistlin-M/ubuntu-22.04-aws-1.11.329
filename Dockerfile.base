@@ -1,72 +1,62 @@
-FROM ubuntu:22.04
+FROM almalinux:8.10
 
-# ====================== Базовые зависимости ======================
-RUN apt-get update && apt-get install -y \
-    build-essential \
+# EPEL + PowerTools для дополнительных пакетов
+RUN dnf install -y epel-release \
+    && dnf config-manager --set-enabled powertools \
+    && dnf clean all
+
+# Зависимости сборки
+RUN dnf install -y \
+    gcc \
+    gcc-c++ \
+    make \
     cmake \
     ninja-build \
     git \
     wget \
     curl \
-    libssl-dev \
-    zlib1g-dev \
-    libbz2-dev \
-    libreadline-dev \
-    libsqlite3-dev \
-    libncursesw5-dev \
-    xz-utils \
-    tk-dev \
-    libxml2-dev \
-    libxmlsec1-dev \
-    libffi-dev \
-    liblzma-dev \
-    libpq-dev \
-    libpqxx-dev \
-    libsodium-dev \
-    libcurl4-openssl-dev \
-    libmagic-dev \
-    libvips-dev \
-    && rm -rf /var/lib/apt/lists/*
+    tar \
+    gzip \
+    pkgconf-pkg-config \
+    openssl-devel \
+    zlib-devel \
+    bzip2-devel \
+    readline-devel \
+    sqlite-devel \
+    ncurses-devel \
+    xz \
+    xz-devel \
+    tk-devel \
+    libxml2-devel \
+    xmlsec1-devel \
+    libffi-devel \
+    postgresql-devel \
+    libpqxx-devel \
+    libsodium-devel \
+    libcurl-devel \
+    file-devel \
+    vips-devel \
+    && dnf clean all
 
-# ====================== Сборка OR-Tools из исходников ======================
-WORKDIR /tmp
-
-# Клонируем актуальную версию (рекомендую stable ветку или конкретный тег)
+# ====================== OR-Tools (готовый бинарник) ======================
+ARG TARGETARCH=amd64
 ARG ORTOOLS_VERSION=v9.15
-RUN git clone --depth 1 --branch ${ORTOOLS_VERSION} https://github.com/google/or-tools.git
+ARG ORTOOLS_BUILD=v9.15.6755
 
-WORKDIR /tmp/or-tools
+RUN ORTOOLS_ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x86_64") && \
+    wget -q \
+        "https://github.com/google/or-tools/releases/download/${ORTOOLS_VERSION}/or-tools_${ORTOOLS_ARCH}_AlmaLinux-8.10_cpp_${ORTOOLS_BUILD}.tar.gz" \
+        -O /tmp/ortools.tar.gz && \
+    mkdir -p /tmp/ortools && \
+    tar -xzf /tmp/ortools.tar.gz -C /tmp/ortools --strip-components=1 && \
+    cp -r /tmp/ortools/include/. /usr/local/include/ && \
+    cp -r /tmp/ortools/lib/. /usr/local/lib/ && \
+    rm -rf /tmp/ortools /tmp/ortools.tar.gz
 
-# Создаём папку сборки
-RUN mkdir -p build && cd build
-
-# Конфигурация CMake
-# -DBUILD_DEPS=ON — автоматически соберёт все зависимости (CBC, HiGHS, SCIP и т.д.)
-RUN cmake -S . -B build \
-    -G Ninja \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DBUILD_DEPS=ON \
-    -DBUILD_PYTHON=OFF \
-    -DBUILD_JAVA=OFF \
-    -DBUILD_DOTNET=OFF \
-    -DBUILD_CXX_SAMPLES=OFF \
-    -DBUILD_CXX_EXAMPLES=OFF \
-    -DCMAKE_INSTALL_PREFIX=/usr/local
-
-# Сборка (используем все ядра)
-RUN cmake --build build --config Release --target all -j$(nproc)
-
-# Установка
-RUN cmake --install build
-
-# Очистка
-WORKDIR /
-RUN rm -rf /tmp/or-tools
-
-# ====================== AWS SDK (оставляем как было) ======================
+# ====================== AWS SDK ======================
 WORKDIR /tmp
 RUN git clone --recurse-submodules --branch 1.11.329 \
-    https://github.com/aws/aws-sdk-cpp.git && \
+        https://github.com/aws/aws-sdk-cpp.git && \
     cd aws-sdk-cpp && \
     mkdir build && cd build && \
     cmake .. \
@@ -81,7 +71,6 @@ RUN git clone --recurse-submodules --branch 1.11.329 \
     make -j$(nproc) && make install && \
     cd / && rm -rf /tmp/aws-sdk-cpp
 
-# ldconfig после установки библиотек
 RUN ldconfig
 
 LABEL stage=base

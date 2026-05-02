@@ -9,6 +9,7 @@ RUN dnf install -y epel-release \
 RUN dnf install -y \
     gcc \
     gcc-c++ \
+    gcc-toolset-12 \
     make \
     cmake \
     ninja-build \
@@ -34,6 +35,7 @@ RUN dnf install -y \
     libsodium-devel \
     libcurl-devel \
     file-devel \
+    boost-devel \
     glib2-devel \
     expat-devel \
     libjpeg-turbo-devel \
@@ -45,6 +47,10 @@ RUN dnf install -y \
     lcms2-devel \
     libexif-devel \
     && dnf clean all
+
+# Активируем gcc-toolset-12 глобально для всех последующих слоёв
+ENV PATH=/opt/rh/gcc-toolset-12/root/usr/bin:$PATH
+ENV LD_LIBRARY_PATH=/opt/rh/gcc-toolset-12/root/usr/lib64:/opt/rh/gcc-toolset-12/root/usr/lib:$LD_LIBRARY_PATH
 
 # ====================== libpqxx из исходников ======================
 RUN git clone --depth 1 --branch 7.9.0 https://github.com/jtv/libpqxx.git /tmp/libpqxx \
@@ -72,17 +78,19 @@ RUN mkdir -p /tmp/vips \
     && rm -rf /tmp/vips /tmp/vips.tar.xz
 
 # ====================== OR-Tools (готовый бинарник) ======================
-ARG TARGETARCH=amd64
+# TARGETARCH объявляем без дефолта — buildx заполняет его автоматически (arm64/amd64)
+ARG TARGETARCH
 ARG ORTOOLS_VERSION=v9.15
 ARG ORTOOLS_BUILD=v9.15.6755
 
 RUN ORTOOLS_ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x86_64") \
+    && echo "Downloading OR-Tools for architecture: $ORTOOLS_ARCH" \
     && wget -q \
         "https://github.com/google/or-tools/releases/download/${ORTOOLS_VERSION}/or-tools_${ORTOOLS_ARCH}_AlmaLinux-8.10_cpp_${ORTOOLS_BUILD}.tar.gz" \
         -O /tmp/ortools.tar.gz \
     && mkdir -p /opt/ortools \
     && tar -xzf /tmp/ortools.tar.gz -C /opt/ortools --strip-components=1 \
-    && echo "/opt/ortools/lib" > /etc/ld.so.conf.d/ortools.conf \
+    && printf '/opt/ortools/lib\n/opt/ortools/lib64\n' > /etc/ld.so.conf.d/ortools.conf \
     && rm /tmp/ortools.tar.gz
 
 # ====================== AWS SDK ======================

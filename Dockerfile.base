@@ -80,11 +80,10 @@ RUN ORTOOLS_ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x86_64
     && wget -q \
         "https://github.com/google/or-tools/releases/download/${ORTOOLS_VERSION}/or-tools_${ORTOOLS_ARCH}_AlmaLinux-8.10_cpp_${ORTOOLS_BUILD}.tar.gz" \
         -O /tmp/ortools.tar.gz \
-    && mkdir -p /tmp/ortools \
-    && tar -xzf /tmp/ortools.tar.gz -C /tmp/ortools --strip-components=1 \
-    && cp -r /tmp/ortools/include/. /usr/local/include/ \
-    && cp -r /tmp/ortools/lib/. /usr/local/lib/ \
-    && rm -rf /tmp/ortools /tmp/ortools.tar.gz
+    && mkdir -p /opt/ortools \
+    && tar -xzf /tmp/ortools.tar.gz -C /opt/ortools --strip-components=1 \
+    && echo "/opt/ortools/lib" > /etc/ld.so.conf.d/ortools.conf \
+    && rm /tmp/ortools.tar.gz
 
 # ====================== AWS SDK ======================
 WORKDIR /tmp

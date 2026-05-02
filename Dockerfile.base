@@ -1,22 +1,24 @@
 FROM almalinux:8.10
 
-# EPEL + PowerTools для дополнительных пакетов
+# EPEL + PowerTools
 RUN dnf install -y epel-release \
     && dnf config-manager --set-enabled powertools \
     && dnf clean all
 
-# Зависимости сборки
+# ====================== Базовые зависимости ======================
 RUN dnf install -y \
     gcc \
     gcc-c++ \
     make \
     cmake \
     ninja-build \
+    meson \
     git \
     wget \
     curl \
     tar \
     gzip \
+    python3 \
     pkgconf-pkg-config \
     openssl-devel \
     zlib-devel \
@@ -26,40 +28,71 @@ RUN dnf install -y \
     ncurses-devel \
     xz \
     xz-devel \
-    tk-devel \
     libxml2-devel \
-    xmlsec1-devel \
     libffi-devel \
     postgresql-devel \
-    libpqxx-devel \
     libsodium-devel \
     libcurl-devel \
     file-devel \
-    vips-devel \
+    glib2-devel \
+    expat-devel \
+    libjpeg-turbo-devel \
+    libpng-devel \
+    libtiff-devel \
+    libwebp-devel \
+    fftw-devel \
+    orc-devel \
+    lcms2-devel \
+    libexif-devel \
     && dnf clean all
+
+# ====================== libpqxx из исходников ======================
+RUN git clone --depth 1 --branch 7.9.0 https://github.com/jtv/libpqxx.git /tmp/libpqxx \
+    && cmake -S /tmp/libpqxx -B /tmp/libpqxx/build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_TEST=OFF \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+    && cmake --build /tmp/libpqxx/build -j$(nproc) \
+    && cmake --install /tmp/libpqxx/build \
+    && rm -rf /tmp/libpqxx
+
+# ====================== libvips из исходников ======================
+RUN mkdir -p /tmp/vips \
+    && wget -q https://github.com/libvips/libvips/releases/download/v8.15.2/vips-8.15.2.tar.xz \
+        -O /tmp/vips.tar.xz \
+    && tar -xJf /tmp/vips.tar.xz -C /tmp/vips --strip-components=1 \
+    && cd /tmp/vips \
+    && meson setup build \
+        --prefix=/usr/local \
+        --buildtype=release \
+        -Ddeprecated=false \
+        -Dintrospection=disabled \
+    && ninja -C build \
+    && ninja -C build install \
+    && rm -rf /tmp/vips /tmp/vips.tar.xz
 
 # ====================== OR-Tools (готовый бинарник) ======================
 ARG TARGETARCH=amd64
 ARG ORTOOLS_VERSION=v9.15
 ARG ORTOOLS_BUILD=v9.15.6755
 
-RUN ORTOOLS_ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x86_64") && \
-    wget -q \
+RUN ORTOOLS_ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x86_64") \
+    && wget -q \
         "https://github.com/google/or-tools/releases/download/${ORTOOLS_VERSION}/or-tools_${ORTOOLS_ARCH}_AlmaLinux-8.10_cpp_${ORTOOLS_BUILD}.tar.gz" \
-        -O /tmp/ortools.tar.gz && \
-    mkdir -p /tmp/ortools && \
-    tar -xzf /tmp/ortools.tar.gz -C /tmp/ortools --strip-components=1 && \
-    cp -r /tmp/ortools/include/. /usr/local/include/ && \
-    cp -r /tmp/ortools/lib/. /usr/local/lib/ && \
-    rm -rf /tmp/ortools /tmp/ortools.tar.gz
+        -O /tmp/ortools.tar.gz \
+    && mkdir -p /tmp/ortools \
+    && tar -xzf /tmp/ortools.tar.gz -C /tmp/ortools --strip-components=1 \
+    && cp -r /tmp/ortools/include/. /usr/local/include/ \
+    && cp -r /tmp/ortools/lib/. /usr/local/lib/ \
+    && rm -rf /tmp/ortools /tmp/ortools.tar.gz
 
 # ====================== AWS SDK ======================
 WORKDIR /tmp
 RUN git clone --recurse-submodules --branch 1.11.329 \
-        https://github.com/aws/aws-sdk-cpp.git && \
-    cd aws-sdk-cpp && \
-    mkdir build && cd build && \
-    cmake .. \
+        https://github.com/aws/aws-sdk-cpp.git \
+    && cd aws-sdk-cpp \
+    && mkdir build && cd build \
+    && cmake .. \
         -DCMAKE_BUILD_TYPE=Release \
         -DBUILD_ONLY="s3;core" \
         -DENABLE_TESTING=OFF \
@@ -67,9 +100,9 @@ RUN git clone --recurse-submodules --branch 1.11.329 \
         -DENABLE_CURL=ON \
         -DENABLE_UNITY_BUILD=ON \
         -DUSE_CRYPTO=OPENSSL \
-        -DENABLE_S3_CRT=OFF && \
-    make -j$(nproc) && make install && \
-    cd / && rm -rf /tmp/aws-sdk-cpp
+        -DENABLE_S3_CRT=OFF \
+    && make -j$(nproc) && make install \
+    && cd / && rm -rf /tmp/aws-sdk-cpp
 
 RUN ldconfig
 
